@@ -15,16 +15,18 @@ add_library(NorthstarRadio SHARED
 )
 
 # ============================================================
-# safetyhook — clonируется CI автоматически
+# safetyhook вЂ” clonРёСЂСѓРµС‚СЃСЏ CI Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё
 # ============================================================
 add_subdirectory(deps/safetyhook)
 target_link_libraries(NorthstarRadio PRIVATE safetyhook)
 
 # ============================================================
-# plugin-sdk GTA III — clonируется CI автоматически
+# plugin-sdk GTA III вЂ” clonРёСЂСѓРµС‚СЃСЏ CI Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё
 # ============================================================
 target_include_directories(NorthstarRadio PRIVATE
     deps/plugin-sdk/plugin_III
+    deps/plugin-sdk/plugin_III/game_III
+    deps/plugin-sdk/plugin_III/game_III/meta
     deps/plugin-sdk/plugin_III/rw
     deps/plugin-sdk/plugin_s
     deps/plugin-sdk/shared
@@ -32,19 +34,17 @@ target_include_directories(NorthstarRadio PRIVATE
     deps/plugin-sdk/injector
 )
 
-# Добавляем путь к скомпилированной plugin.lib из plugin-sdk
-# CI строит её на шаге "Build plugin-sdk lib"
-link_directories(${CMAKE_SOURCE_DIR}/deps/plugin-sdk/output/gta3/Release)
-target_link_libraries(NorthstarRadio PRIVATE plugin)
+# plugin-sdk РІ СЃРѕРІСЂРµРјРµРЅРЅС‹С… РІРµСЂСЃРёСЏС… РІ РѕСЃРЅРѕРІРЅРѕРј header-only.
+# Р•СЃР»Рё РїРѕС‚СЂРµР±СѓРµС‚СЃСЏ plugin.lib, РІРµСЂРЅРёС‚Рµ Р»РёРЅРєРѕРІРєСѓ РѕР±СЂР°С‚РЅРѕ.
 
 # ============================================================
 # BASS audio library
-# Файлы нужно скачать вручную с https://www.un4seen.com/
-# и положить в папку libs/bass/ вашего репозитория:
+# Р¤Р°Р№Р»С‹ РЅСѓР¶РЅРѕ СЃРєР°С‡Р°С‚СЊ РІСЂСѓС‡РЅСѓСЋ СЃ https://www.un4seen.com/
+# Рё РїРѕР»РѕР¶РёС‚СЊ РІ РїР°РїРєСѓ libs/bass/ РІР°С€РµРіРѕ СЂРµРїРѕР·РёС‚РѕСЂРёСЏ:
 #   libs/bass/bass.h
-#   libs/bass/bass.lib      (папка c/ внутри архива BASS)
+#   libs/bass/bass.lib      (РїР°РїРєР° c/ РІРЅСѓС‚СЂРё Р°СЂС…РёРІР° BASS)
 #   libs/bass/bass_fx.h
-#   libs/bass/bass_fx.lib   (папка c/ внутри архива bass_fx)
+#   libs/bass/bass_fx.lib   (РїР°РїРєР° c/ РІРЅСѓС‚СЂРё Р°СЂС…РёРІР° bass_fx)
 # ============================================================
 target_include_directories(NorthstarRadio PRIVATE libs/bass)
 target_link_libraries(NorthstarRadio PRIVATE
@@ -53,7 +53,7 @@ target_link_libraries(NorthstarRadio PRIVATE
 )
 
 # ============================================================
-# Системные библиотеки Windows
+# РЎРёСЃС‚РµРјРЅС‹Рµ Р±РёР±Р»РёРѕС‚РµРєРё Windows
 # ============================================================
 target_link_libraries(NorthstarRadio PRIVATE
     Xinput.lib
@@ -63,7 +63,7 @@ target_link_libraries(NorthstarRadio PRIVATE
 )
 
 # ============================================================
-# Переименовать DLL → .asi
+# РџРµСЂРµРёРјРµРЅРѕРІР°С‚СЊ DLL в†’ .asi
 # ============================================================
 set_target_properties(NorthstarRadio PROPERTIES
     OUTPUT_NAME "NorthstarRadio"
@@ -72,12 +72,12 @@ set_target_properties(NorthstarRadio PROPERTIES
 )
 
 # ============================================================
-# Флаги компилятора MSVC
+# Р¤Р»Р°РіРё РєРѕРјРїРёР»СЏС‚РѕСЂР° MSVC
 # ============================================================
 if(MSVC)
     target_compile_options(NorthstarRadio PRIVATE
         /W3
-        /MP       # параллельная сборка
+        /MP       # РїР°СЂР°Р»Р»РµР»СЊРЅР°СЏ СЃР±РѕСЂРєР°
         /EHsc
     )
     target_compile_definitions(NorthstarRadio PRIVATE
@@ -87,7 +87,7 @@ if(MSVC)
         WIN32_LEAN_AND_MEAN
         NOMINMAX
     )
-    # Статичная CRT — убирает зависимость от VCRUNTIME DLL
+    # РЎС‚Р°С‚РёС‡РЅР°СЏ CRT вЂ” СѓР±РёСЂР°РµС‚ Р·Р°РІРёСЃРёРјРѕСЃС‚СЊ РѕС‚ VCRUNTIME DLL
     set_property(TARGET NorthstarRadio
         PROPERTY MSVC_RUNTIME_LIBRARY
         "MultiThreaded$<$<CONFIG:Debug>:Debug>"
