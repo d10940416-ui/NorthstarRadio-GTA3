@@ -1,5 +1,8 @@
 name: Build NorthstarRadio (GTA III)
 
+permissions:
+  contents: read
+
 # Запускается при каждом push в main, и вручную кнопкой Run workflow
 on:
   push:
