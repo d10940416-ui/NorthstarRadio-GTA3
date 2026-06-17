@@ -25,8 +25,7 @@ jobs:
       - name: Clone plugin-sdk
         run: |
           git clone --depth=1 `
-            https://github.com/plugin-sdk/plugin-sdk.git `
-            deps/plugin-sdk
+            https://github.com/DK22Pac/plugin-sdk.git
 
       # ── 4. Собрать plugin.lib (GTA III) из plugin-sdk ───────
       #    plugin-sdk поставляется с готовыми .vcxproj файлами.
