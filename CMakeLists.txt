@@ -24,13 +24,18 @@ target_link_libraries(NorthstarRadio PRIVATE safetyhook)
 # plugin-sdk GTA III вЂ” clonРёСЂСѓРµС‚СЃСЏ CI Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё
 # ============================================================
 target_include_directories(NorthstarRadio PRIVATE
+    deps/plugin-sdk
+
     deps/plugin-sdk/plugin_III
     deps/plugin-sdk/plugin_III/game_III
     deps/plugin-sdk/plugin_III/game_III/meta
     deps/plugin-sdk/plugin_III/rw
+
     deps/plugin-sdk/plugin_s
+
     deps/plugin-sdk/shared
     deps/plugin-sdk/shared/audio
+
     deps/plugin-sdk/injector
 )
 
