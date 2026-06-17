@@ -1,6 +1,5 @@
 name: Build NorthstarRadio (GTA III)
 
-# Запускается при каждом push в main, и вручную кнопкой Run workflow
 on:
   push:
     branches: [ main, master ]
@@ -13,53 +12,55 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # ── 1. Скачать ваш репозиторий ──────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── 2. Настроить MSBuild (нужен для plugin-sdk) ─────────
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      # ── 3. Скачать plugin-sdk ───────────────────────────────
       - name: Clone plugin-sdk
-        shell: pwsh
-        run: |
-          git clone --depth=1 https://github.com/DK22Pac/plugin-sdk.git deps/plugin-sdk
+        run: git clone --depth=1 https://github.com/DK22Pac/plugin-sdk.git deps/plugin-sdk
 
-      # plugin-sdk больше не требует сборки plugin.lib
-      # ── 5. Скачать safetyhook (с зависимостью Zydis) ────────
       - name: Clone safetyhook
+        run: git clone --depth=1 --recurse-submodules https://github.com/cursey/safetyhook.git deps/safetyhook
+
+      # FIX 1: copy CRGBA.h into shared/ so Color.h can find it
+      - name: Fix CRGBA.h include path
         shell: pwsh
         run: |
-          git clone --depth=1 --recurse-submodules https://github.com/cursey/safetyhook.git deps/safetyhook
+          $src = "deps/plugin-sdk/plugin_III/game_III/CRGBA.h"
+          $dst = "deps/plugin-sdk/shared/CRGBA.h"
+          if (Test-Path $src) {
+            Copy-Item $src $dst -Force
+            Write-Host "Copied CRGBA.h to shared/"
+          } else {
+            Write-Error "CRGBA.h not found at $src — check plugin-sdk structure"
+            Get-ChildItem deps/plugin-sdk/plugin_III/game_III/ | Select-Object Name | head -20
+            exit 1
+          }
 
-      # ── 6. Настроить CMake (32-бит) ─────────────────────────
       - name: Configure CMake
         run: |
           cmake -B build `
                 -A Win32 `
-                -DCMAKE_BUILD_TYPE=Release
+                -DCMAKE_BUILD_TYPE=Release `
+                "-DCMAKE_CXX_FLAGS=/DGTAIII /DWIN32_LEAN_AND_MEAN /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS" `
+                "-DCMAKE_C_FLAGS=/DGTAIII"
 
-      # ── 7. Компиляция ────────────────────────────────────────
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      # ── 8. Проверить что файл появился ───────────────────────
       - name: Verify output
+        shell: pwsh
         run: |
           if (Test-Path "build/Release/NorthstarRadio.asi") {
             $size = (Get-Item "build/Release/NorthstarRadio.asi").Length
-            Write-Host "✓ NorthstarRadio.asi создан ($size байт)"
+            Write-Host "OK: NorthstarRadio.asi created ($size bytes)"
           } else {
-            Write-Error "✗ NorthstarRadio.asi не найден!"
+            Write-Error "NorthstarRadio.asi not found"
             exit 1
           }
-        shell: pwsh
 
-      # ── 9. Загрузить готовый .asi как артефакт ───────────────
-      #    После завершения сборки скачать можно на вкладке
-      #    Actions → выбрать запуск → раздел Artifacts внизу.
       - name: Upload NorthstarRadio.asi
         uses: actions/upload-artifact@v4
         with:
