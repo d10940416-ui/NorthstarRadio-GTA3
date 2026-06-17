@@ -44,14 +44,6 @@ set_target_properties(NorthstarRadio PROPERTIES
 
 if(MSVC)
     target_compile_options(NorthstarRadio PRIVATE /W3 /MP /EHsc)
-    target_compile_definitions(NorthstarRadio PRIVATE
-        GTAIII
-        _CRT_SECURE_NO_WARNINGS
-        WINVER=0x0501
-        _WIN32_WINNT=0x0501
-        WIN32_LEAN_AND_MEAN
-        NOMINMAX
-    )
     set_property(TARGET NorthstarRadio
         PROPERTY MSVC_RUNTIME_LIBRARY
         "MultiThreaded$<$<CONFIG:Debug>:Debug>"
