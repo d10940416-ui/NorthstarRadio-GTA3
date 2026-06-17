@@ -24,18 +24,21 @@ jobs:
       - name: Clone safetyhook
         run: git clone --depth=1 --recurse-submodules https://github.com/cursey/safetyhook.git deps/safetyhook
 
-      # FIX 1: copy CRGBA.h into shared/ so Color.h can find it
+      # Find CRGBA.h wherever it is, then copy to shared/
       - name: Fix CRGBA.h include path
         shell: pwsh
         run: |
-          $src = "deps/plugin-sdk/plugin_III/game_III/CRGBA.h"
-          $dst = "deps/plugin-sdk/shared/CRGBA.h"
-          if (Test-Path $src) {
-            Copy-Item $src $dst -Force
-            Write-Host "Copied CRGBA.h to shared/"
+          Write-Host "=== Searching for CRGBA.h ==="
+          $found = Get-ChildItem -Recurse -Filter "CRGBA.h" deps/plugin-sdk -ErrorAction SilentlyContinue |
+                   Select-Object -First 1
+          if ($found) {
+            Write-Host "Found: $($found.FullName)"
+            Copy-Item $found.FullName "deps/plugin-sdk/shared/CRGBA.h" -Force
+            Write-Host "Copied to deps/plugin-sdk/shared/CRGBA.h"
           } else {
-            Write-Error "CRGBA.h not found at $src — check plugin-sdk structure"
-            Get-ChildItem deps/plugin-sdk/plugin_III/game_III/ | Select-Object Name | head -20
+            Write-Host "CRGBA.h not found — listing plugin-sdk root structure:"
+            Get-ChildItem -Recurse deps/plugin-sdk -Filter "*.h" |
+              Select-Object -First 40 -ExpandProperty FullName
             exit 1
           }
 
