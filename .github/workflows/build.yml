@@ -1,0 +1,80 @@
+name: Build NorthstarRadio (GTA III)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Compile ASI (x86 Release)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Clone plugin-sdk
+        run: git clone --depth=1 https://github.com/DK22Pac/plugin-sdk.git deps/plugin-sdk
+
+      - name: Clone safetyhook
+        run: git clone --depth=1 --recurse-submodules https://github.com/cursey/safetyhook.git deps/safetyhook
+
+      # Copy ALL game-specific headers into shared/ so that shared/*.h
+      # can resolve their own includes (CVector.h, CRGBA.h, etc.)
+      - name: Copy game_III headers into shared/
+        shell: pwsh
+        run: |
+          $sources = @(
+            "deps/plugin-sdk/plugin_III/game_III",
+            "deps/plugin-sdk/plugin_III/rw"
+          )
+          $dst = "deps/plugin-sdk/shared"
+          foreach ($src in $sources) {
+            if (Test-Path $src) {
+              $files = Get-ChildItem "$src" -Filter "*.h"
+              foreach ($f in $files) {
+                $target = "$dst/$($f.Name)"
+                if (-not (Test-Path $target)) {
+                  Copy-Item $f.FullName $target -Force
+                }
+              }
+              Write-Host "Copied from $src ($($files.Count) headers)"
+            } else {
+              Write-Warning "$src not found, skipping"
+            }
+          }
+          Write-Host "Done — shared/ now contains all game_III + rw headers"
+
+      - name: Configure CMake
+        run: |
+          cmake -B build `
+                -A Win32 `
+                -DCMAKE_BUILD_TYPE=Release `
+                "-DCMAKE_CXX_FLAGS=/DGTAIII /DWIN32_LEAN_AND_MEAN /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Verify output
+        shell: pwsh
+        run: |
+          if (Test-Path "build/Release/NorthstarRadio.asi") {
+            $size = (Get-Item "build/Release/NorthstarRadio.asi").Length
+            Write-Host "OK: NorthstarRadio.asi ($size bytes)"
+          } else {
+            Write-Error "NorthstarRadio.asi not found"
+            exit 1
+          }
+
+      - name: Upload NorthstarRadio.asi
+        uses: actions/upload-artifact@v4
+        with:
+          name: NorthstarRadio-GTA3
+          path: build/Release/NorthstarRadio.asi
+          retention-days: 90
+          if-no-files-found: error
