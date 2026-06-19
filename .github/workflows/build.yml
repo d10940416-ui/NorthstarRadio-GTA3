@@ -17,6 +17,8 @@ jobs:
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x86
 
       - name: Clone plugin-sdk
         run: git clone --depth=1 https://github.com/DK22Pac/plugin-sdk.git deps/plugin-sdk
@@ -88,8 +90,6 @@ jobs:
         run: |
           import os, re, glob, shutil
 
-          # These are provided by MSVC / Windows SDK — NEVER stub them.
-          # Stubbing them shadows the real files and breaks SSE intrinsics etc.
           SKIP = {
             'emmintrin.h','mmintrin.h','xmmintrin.h','pmmintrin.h',
             'tmmintrin.h','smmintrin.h','nmmintrin.h','wmmintrin.h','immintrin.h',
@@ -137,8 +137,55 @@ jobs:
                 f.write(f'#pragma once\n// auto-stub: {inc}\n')
               print(f"  stubbed {inc}")
 
+      # === НОВЫЙ ШАГ — КРИТИЧЕСКИ ВАЖНЫЕ RenderWare заголовки ===
+      - name: Create RenderWare stubs for GTA III
+        shell: pwsh
+        run: |
+          $rw = "deps/plugin-sdk/shared/rwcore.h"
+          @"
+#pragma once
+
+// Minimal RenderWare stubs required by plugin-sdk for GTA III
+typedef int RwBool;
+typedef float RwReal;
+typedef int RwInt32;
+typedef unsigned int RwUInt32;
+typedef unsigned char RwUInt8;
+typedef void* RwVoid;
+
+struct RwV2d { float x, y; };
+struct RwV3d { float x, y, z; };
+
+struct RwFrame;
+struct RpClump;
+struct RpAtomic;
+struct RpGeometry;
+struct RwTexture;
+struct RwRaster;
+struct RwMatrix;
+
+typedef struct RwFrame RwFrame;
+typedef struct RpClump RpClump;
+typedef struct RpAtomic RpAtomic;
+typedef struct RpGeometry RpGeometry;
+typedef struct RwTexture RwTexture;
+typedef struct RwRaster RwRaster;
+typedef struct RwMatrix RwMatrix;
+
+// Common functions used in plugin-sdk
+RpClump* RpClumpForAllAtomics(RpClump* clump, void* callback, void* data);
+RwFrame* RwFrameGetParent(RwFrame* frame);
+RwFrame* RwFrameAddChild(RwFrame* parent, RwFrame* child);
+
+inline RpClump* RpClumpForAllAtomics(RpClump* clump, void* callback, void* data) { return clump; }
+inline RwFrame* RwFrameGetParent(RwFrame* frame) { return nullptr; }
+inline RwFrame* RwFrameAddChild(RwFrame* parent, RwFrame* child) { return child; }
+"@ | Out-File $rw -Force -Encoding utf8
+
+          Write-Host "Created RenderWare stubs (rwcore.h)"
+
       - name: Configure CMake
-        run: cmake -B build -A Win32
+        run: cmake -B build -A Win32 -DCMAKE_CXX_FLAGS="/D_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS /wd4996 /wd4244 /wd4267"
 
       - name: Build
         run: cmake --build build --config Release --parallel
