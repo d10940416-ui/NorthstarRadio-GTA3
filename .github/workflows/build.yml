@@ -1,0 +1,143 @@
+name: Build NorthstarRadio (GTA III)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Compile ASI (x86 Release)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Clone plugin-sdk
+        run: git clone --depth=1 https://github.com/DK22Pac/plugin-sdk.git deps/plugin-sdk
+
+      - name: Clone safetyhook
+        run: git clone --depth=1 --recurse-submodules https://github.com/cursey/safetyhook.git deps/safetyhook
+
+      - name: Copy game_III into shared/ preserving subdirs
+        shell: pwsh
+        run: |
+          $src = [System.IO.Path]::GetFullPath("deps/plugin-sdk/plugin_III/game_III")
+          $dst = [System.IO.Path]::GetFullPath("deps/plugin-sdk/shared")
+          $files = Get-ChildItem "$src" -Filter "*.h" -Recurse
+          foreach ($f in $files) {
+            $rel    = $f.FullName.Substring($src.Length + 1)
+            $target = Join-Path $dst $rel
+            $dir    = Split-Path $target -Parent
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+            Copy-Item $f.FullName $target -Force
+          }
+          Write-Host "Copied $($files.Count) headers (recursive, structure preserved)"
+
+      - name: Create CRGBA.h
+        shell: pwsh
+        run: |
+          $f = "deps/plugin-sdk/shared/CRGBA.h"
+          "#pragma once"                                                        | Out-File $f -Force -Encoding utf8
+          "class CRGBA {"                                                       | Add-Content $f
+          "public:"                                                             | Add-Content $f
+          "    unsigned char red, green, blue, alpha;"                         | Add-Content $f
+          "    CRGBA() = default;"                                             | Add-Content $f
+          "    CRGBA(unsigned char r, unsigned char g,"                        | Add-Content $f
+          "          unsigned char b, unsigned char a = 255)"                  | Add-Content $f
+          "        : red(r), green(g), blue(b), alpha(a) {}"                  | Add-Content $f
+          "    bool operator==(const CRGBA& o) const {"                       | Add-Content $f
+          "        return red==o.red && green==o.green"                        | Add-Content $f
+          "            && blue==o.blue && alpha==o.alpha; }"                   | Add-Content $f
+          "    bool operator!=(const CRGBA& o) const { return !(*this==o); }" | Add-Content $f
+          "};"                                                                  | Add-Content $f
+
+      - name: Create CVector.h
+        shell: pwsh
+        run: |
+          $f = "deps/plugin-sdk/shared/CVector.h"
+          "#pragma once"                                                               | Out-File $f -Force -Encoding utf8
+          "#include <cmath>"                                                           | Add-Content $f
+          "class CVector {"                                                            | Add-Content $f
+          "public:"                                                                    | Add-Content $f
+          "    float x, y, z;"                                                        | Add-Content $f
+          "    CVector() = default;"                                                  | Add-Content $f
+          "    CVector(float x,float y,float z):x(x),y(y),z(z){}"                  | Add-Content $f
+          "    void Set(float _x,float _y,float _z){x=_x;y=_y;z=_z;}"              | Add-Content $f
+          "    CVector operator-()const{return CVector(-x,-y,-z);}"                  | Add-Content $f
+          "    CVector operator+(const CVector& v)const{return CVector(x+v.x,y+v.y,z+v.z);}" | Add-Content $f
+          "    CVector operator-(const CVector& v)const{return CVector(x-v.x,y-v.y,z-v.z);}" | Add-Content $f
+          "    CVector operator*(float f)const{return CVector(x*f,y*f,z*f);}"       | Add-Content $f
+          "    CVector& operator+=(const CVector& v){x+=v.x;y+=v.y;z+=v.z;return *this;}" | Add-Content $f
+          "    CVector& operator-=(const CVector& v){x-=v.x;y-=v.y;z-=v.z;return *this;}" | Add-Content $f
+          "    float Magnitude()const{return sqrtf(x*x+y*y+z*z);}"                  | Add-Content $f
+          "    float MagnitudeSqr()const{return x*x+y*y+z*z;}"                      | Add-Content $f
+          "    void Normalise(){float m=Magnitude();if(m>0.f){x/=m;y/=m;z/=m;}}"   | Add-Content $f
+          "};"                                                                         | Add-Content $f
+          "inline float DotProduct(const CVector&a,const CVector&b){return a.x*b.x+a.y*b.y+a.z*b.z;}" | Add-Content $f
+          "inline CVector CrossProduct(const CVector&a,const CVector&b){"            | Add-Content $f
+          "    return CVector(a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x);}" | Add-Content $f
+
+      - name: Auto-stub remaining missing shared headers
+        shell: python
+        run: |
+          import os, re, glob, shutil
+          shared   = r'deps/plugin-sdk/shared'
+          sdk_root = r'deps/plugin-sdk'
+          missing  = set()
+          for hf in glob.glob(os.path.join(shared, '**', '*.h'), recursive=True):
+            try:
+              with open(hf, encoding='utf-8', errors='ignore') as f:
+                for line in f:
+                  m = re.match(r'\s*#\s*include\s+"([^"]+\.h)"', line)
+                  if m:
+                    inc = m.group(1)
+                    if not os.path.exists(os.path.join(shared, inc)):
+                      missing.add(inc)
+            except: pass
+          print(f"Still missing: {len(missing)} headers")
+          for inc in sorted(missing):
+            dest = os.path.join(shared, inc)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            found = None
+            for root, dirs, files in os.walk(sdk_root):
+              if os.path.basename(inc) in files:
+                found = os.path.join(root, os.path.basename(inc))
+                break
+            if found:
+              shutil.copy(found, dest)
+              print(f"  copied  {inc}")
+            else:
+              with open(dest, 'w') as f:
+                f.write(f'#pragma once\n// auto-stub: {inc}\n')
+              print(f"  stubbed {inc}")
+
+      - name: Configure CMake
+        run: cmake -B build -A Win32
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Verify output
+        shell: pwsh
+        run: |
+          if (Test-Path "build/Release/NorthstarRadio.asi") {
+            $size = (Get-Item "build/Release/NorthstarRadio.asi").Length
+            Write-Host "OK: NorthstarRadio.asi ($size bytes)"
+          } else {
+            Write-Error "NorthstarRadio.asi not found"
+            exit 1
+          }
+
+      - name: Upload NorthstarRadio.asi
+        uses: actions/upload-artifact@v4
+        with:
+          name: NorthstarRadio-GTA3
+          path: build/Release/NorthstarRadio.asi
+          retention-days: 90
+          if-no-files-found: error
